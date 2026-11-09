@@ -1,0 +1,70 @@
+:root,
+[data-bs-theme="light"] {
+	--bs-quinary: hsla(210deg, 17%, 94%, 1);
+}
+
+[data-bs-theme="dark"] {
+	--bs-quinary: hsla(208deg, 7%, 20%, 1);
+}
+
+*,
+*::after,
+*::before {
+	box-sizing: border-box;
+	/* font-size: 13px; */
+}
+
+body {
+	font-size: 14px;
+	overflow-x: hidden;
+}
+
+body.outline * {
+	outline: 0.2px solid red !important;
+}
+
+.text-monospace {
+	font-family: "Courier New", Courier, monospace !important;
+}
+
+.text-justify {
+	text-align: justify !important;
+}
+.no-caret::after {
+	display: none !important;
+}
+
+.big-banner {
+	background-color: rgba(var(--bs-tertiary-bg-rgb), 1);
+	margin-bottom: 5rem;
+	padding: 7rem 0;
+}
+
+.hover-lifted {
+	box-shadow: var(--bs-box-shadow-sm) !important;
+	transition: all 240ms ease-in-out;
+}
+
+.hover-lifted:hover,
+.hover-lifted:focus {
+	box-shadow: var(--bs-box-shadow) !important;
+	transform: translateY(-2px);
+	transform: scale(1.01);
+}
+
+.cursor-pointer {
+	cursor: pointer !important;
+}
+
+.cursor-disabled {
+	cursor: not-allowed !important;
+}
+
+.text-decoration-dotted {
+	text-decoration: underline;
+	text-decoration-style: dotted;
+}
+
+.smaller {
+	font-size: 12px !important;
+}

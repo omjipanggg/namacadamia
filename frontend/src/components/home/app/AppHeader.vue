@@ -1,0 +1,3 @@
+<template>
+	{{ $t("header") }}
+</template>
