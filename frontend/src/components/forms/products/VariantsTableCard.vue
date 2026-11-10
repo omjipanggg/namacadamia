@@ -1,11 +1,12 @@
 <script setup>
 	import { computed, reactive, ref, watch } from "vue";
+
 	import { generateVariants } from "@/resources/products.js";
 	import BaseMoneyInput from "@/components/base/BaseMoneyInput.vue";
 
 	const skus = defineModel({
 		type: Array,
-		default: [],
+		default: () => [],
 	});
 
 	const props = defineProps({
@@ -17,26 +18,27 @@
 			type: Array,
 			default: () => [],
 		},
-		lookup: {
-			type: Object,
-			default: () => ({}),
-		},
 	});
 
-	const groups = computed(() => {
-		return props.selectedAttributes.map((attribute) => ({
-			attribute: attribute.attribute,
-			values: props.lookup.product_attribute_values.filter(
-				(child) =>
-					child.meta?.product_attribute_id === attribute.attribute.value &&
-					attribute.valueIds.includes(child.value)
-			),
-		}));
-	});
+	const groups = computed(() =>
+		props.selectedAttributes.map((group) => ({
+			attribute: group.attribute,
+			values: group.values.map((value) => ({
+				id: value.id ?? null,
+				label: value.label,
+				attribute_id: group.attribute.id,
+				abbr: value.abbr ?? null,
+			})),
+		}))
+	);
 
-	const hasEmptyGroup = computed(() => {
-		return groups.value.some((group) => group.values.length === 0);
-	});
+	const hasEmptyGroup = computed(() =>
+		groups.value.some((group) => group.values.length === 0)
+	);
+
+	const activeSkus = computed(() =>
+		skus.value.filter((sku) => sku.is_active !== false)
+	);
 
 	const showBulkPrice = ref(false);
 
@@ -46,7 +48,7 @@
 	});
 
 	const openBulkPrice = () => {
-		const firstSku = skus.value[0];
+		const firstSku = activeSkus.value[0];
 
 		if (firstSku) {
 			bulkPrice.costPrice = firstSku.cost_price;
@@ -57,28 +59,51 @@
 	};
 
 	const applyPrices = () => {
-		skus.value.forEach((sku) => {
+		activeSkus.value.forEach((sku) => {
 			sku.cost_price = bulkPrice.costPrice;
 			sku.selling_price = bulkPrice.sellingPrice;
 		});
+
 		showBulkPrice.value = false;
 	};
 
 	watch(
 		groups,
 		(newGroups) => {
-			if (newGroups.length === 0 || hasEmptyGroup.value) {
-				skus.value = [];
-				return;
-			}
+			const existingSkus = skus.value;
+			const existingByKey = new Map(existingSkus.map((sku) => [sku.key, sku]));
 
-			const generated = generateVariants(newGroups, props.code);
+			// No complete combinations can be generated.
+			const generated =
+				newGroups.length && !hasEmptyGroup.value
+					? generateVariants(newGroups, props.code)
+					: [];
 
-			const existing = new Map(skus.value.map((sku) => [sku.key, sku]));
+			const generatedKeys = new Set(generated.map((sku) => sku.key));
 
-			skus.value = generated.map((variant) => {
-				return existing.get(variant.key) ?? variant;
+			// Reuse existing SKU records to preserve their prices,
+			// barcode, code, and database ID.
+			const nextSkus = generated.map((variant) => {
+				const existing = existingByKey.get(variant.key);
+
+				return existing
+					? {
+							...existing,
+							values: variant.values,
+							is_active: true,
+						}
+					: variant;
 			});
+
+			// Keep removed persisted combinations, but deactivate them.
+			const removedPersistedSkus = existingSkus
+				.filter((sku) => sku.id != null && !generatedKeys.has(sku.key))
+				.map((sku) => ({
+					...sku,
+					is_active: false,
+				}));
+
+			skus.value = [...nextSkus, ...removedPersistedSkus];
 		},
 		{
 			deep: true,
@@ -96,18 +121,20 @@
 				<p class="m-0 fw-semibold">SKU {{ $t("products.title") }}</p>
 
 				<button
-					v-if="groups.some((item) => item.values?.length != 0)"
+					v-if="activeSkus.length"
 					type="button"
 					class="btn btn-dark border btn-sm"
 					@click="openBulkPrice"
 				>
 					{{ showBulkPrice ? $t("common.hide") : $t("products.setAllPrices") }}
+
 					<i
 						:class="['bi', `bi-caret-${showBulkPrice ? 'up' : 'down'}-fill`]"
 					></i>
 				</button>
 			</div>
 		</div>
+
 		<div class="card-body">
 			<div v-if="showBulkPrice" id="bulk-price-editor">
 				<div class="border rounded p-3 mb-3">
@@ -141,14 +168,11 @@
 					</div>
 				</div>
 			</div>
-			<div
-				v-if="
-					groups.some((item) => item.values?.length === 0) ||
-					groups.length === 0
-				"
-			>
+
+			<div v-if="!activeSkus.length">
 				{{ $t("products.noVariantsAdded") }}
 			</div>
+
 			<div v-else class="border p-1 rounded">
 				<div class="table-responsive border rounded">
 					<table
@@ -163,8 +187,9 @@
 								<th>{{ $t("products.selling") }}</th>
 							</tr>
 						</thead>
+
 						<tbody>
-							<tr v-for="sku in skus" :key="sku.key">
+							<tr v-for="sku in activeSkus" :key="sku.key">
 								<td width="240">
 									<input
 										:id="`variants-${sku.key}`"
@@ -172,14 +197,11 @@
 										type="text"
 										disabled
 										class="form-control disabled text-truncate"
-										:value="
-											(sku.values ?? []).map((value) => value.title).join(' · ')
-										"
-										:title="
-											(sku.values ?? []).map((value) => value.title).join(' · ')
-										"
+										:value="sku.values.map((value) => value.label).join(' · ')"
+										:title="sku.values.map((value) => value.label).join(' · ')"
 									/>
 								</td>
+
 								<td width="270">
 									<input
 										:id="`code-${sku.key}`"
@@ -190,6 +212,7 @@
 										class="form-control text-truncate"
 									/>
 								</td>
+
 								<td width="270">
 									<input
 										:id="`barcode-${sku.key}`"
@@ -198,6 +221,7 @@
 										class="form-control"
 									/>
 								</td>
+
 								<td width="200">
 									<input
 										:id="`cost-${sku.key}`"
@@ -206,6 +230,7 @@
 										class="form-control"
 									/>
 								</td>
+
 								<td width="200">
 									<input
 										:id="`selling-${sku.key}`"
@@ -227,6 +252,7 @@
 	th {
 		padding-left: 12px;
 	}
+
 	td {
 		font-family: "Courier New", Courier, monospace;
 	}

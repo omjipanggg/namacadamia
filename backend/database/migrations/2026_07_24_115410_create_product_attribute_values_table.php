@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('product_attribute_values', function (Blueprint $table) {
             $table->id();
             $table->string('value');
-            $table->string('abbr');
+            $table->string('abbr')->nullable();
             $table->unsignedBigInteger('product_attribute_id');
             $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_active')->default(1);

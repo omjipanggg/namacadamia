@@ -7,6 +7,7 @@
 	import { useToast } from "@/composables/toast.js";
 	import { columns } from "@/resources/stocks.js";
 
+	import BaseCard from "@/components/base/BaseCard.vue";
 	import BaseAlert from "@/components/base/BaseAlert.vue";
 	import BaseButton from "@/components/base/BaseButton.vue";
 	import FormModal from "@/components/modal/FormModal.vue";
@@ -38,6 +39,10 @@
 	const fetchStock = async (id) => {
 		selectedBranch.value = id;
 		branchStore.fetchStock(id);
+	};
+
+	const getValue = async (data) => {
+		await branchStore.fetchStock(selectedBranch.value, data);
 	};
 
 	const openTransferModal = async (stock) => {
@@ -152,43 +157,43 @@
 	</div>
 
 	<div class="col-lg-8">
-		<Table
-			:columns="columns"
-			:raw="branchStore.stocks"
-			hover
-			bordered
-			:searchable="false"
-			:info="false"
-			:has-pagination="false"
-			:paging="false"
-		>
-			<template #[`cell-sku.product.name`]="{ row }">
-				<span class="fw-semibold d-block m-0">
-					{{ row.sku.product.name }}
-				</span>
-				<small class="text-muted smaller">{{
-					row.sku.variants.map((item) => item.value).join(" • ")
-				}}</small>
-			</template>
-			<template #cell-actions="{ row }">
-				<BaseButton
-					variant="secondary"
-					class="me-2 btn-sm"
-					@click.stop="openAdjustmentModal(row)"
-				>
-					<i class="bi bi-pencil-square me-1"></i>
-					{{ $t("common.edit") }}
-				</BaseButton>
-				<BaseButton
-					variant="success"
-					class="btn-sm"
-					@click.stop="openTransferModal(row)"
-				>
-					<i class="bi bi-arrow-up-right-square me-1"></i>
-					{{ $t("stocks.transfer") }}
-				</BaseButton>
-			</template>
-		</Table>
+		<BaseCard>
+			<Table
+				:columns="columns"
+				:raw="branchStore.stocks"
+				hover
+				bordered
+				:info="false"
+				@request="getValue"
+			>
+				<template #[`cell-sku.product.name`]="{ row }">
+					<span class="fw-semibold d-block m-0">
+						{{ row.sku.product.name }}
+					</span>
+					<small class="text-muted smaller">{{
+						row.sku.variants.map((item) => item.value).join(" • ")
+					}}</small>
+				</template>
+				<template #cell-actions="{ row }">
+					<BaseButton
+						variant="secondary"
+						class="me-2 btn-sm"
+						@click.stop="openAdjustmentModal(row)"
+					>
+						<i class="bi bi-pencil-square me-1"></i>
+						{{ $t("common.edit") }}
+					</BaseButton>
+					<BaseButton
+						variant="success"
+						class="btn-sm"
+						@click.stop="openTransferModal(row)"
+					>
+						<i class="bi bi-arrow-up-right-square me-1"></i>
+						{{ $t("stocks.transfer") }}
+					</BaseButton>
+				</template>
+			</Table>
+		</BaseCard>
 	</div>
 
 	<FormModal

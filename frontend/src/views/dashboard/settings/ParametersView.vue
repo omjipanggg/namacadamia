@@ -9,15 +9,18 @@
 		<h2>Parameters</h2>
 	</div>
 
-	<div class="col-lg-7">
-		<ProductCategoriesCard />
+	<div class="col-12">
+		<div class="row g-3">
+			<div class="col-lg-8">
+				<ProductCategoriesCard />
+			</div>
+			<div class="col-lg-4">
+				<RolesCard />
+			</div>
+		</div>
 	</div>
 
-	<div class="col-lg-5">
+	<div class="col-12">
 		<ProductVariantsCard />
-	</div>
-
-	<div class="col-lg-5">
-		<RolesCard />
 	</div>
 </template>

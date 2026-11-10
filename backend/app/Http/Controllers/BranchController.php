@@ -77,7 +77,9 @@ class BranchController extends BaseController
         if ($search = $request->search ?? null) {
             $stocks->where(function ($query) use ($search) {
                 $query->whereHas('sku', function ($query) use ($search) {
-                    $query->where('code', 'like', "%{$search}%");
+                    $query->where('code', 'like', "%{$search}%")->orWhereHas('product', function ($query) use ($search) {
+                        $query->where('name', 'like', "%{$search}%");
+                    });
                 });
             });
         }

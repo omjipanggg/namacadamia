@@ -33,22 +33,16 @@ class ProductSku extends Model
     public function getLookupSubtitleAttribute(): string
     {
         $variants = $this->variants
-            ->filter()
             ->pluck('value')
             ->implode(' · ');
 
-        if (!empty($variants)) {
-            return $variants;
-        }
-
-        return 'N/A';
-        return $this->code;
+        return $variants ?: ($this->code ?: 'N/A');
     }
 
     public function getLookupMetaAttribute(): Array
     {
         return [
-            'price' => (int) $this->selling_price ?? 0,
+            'price' => (int) ($this->selling_price ?? 0),
             'stock_locations' => $this->stocks->pluck('stock_location_id')->unique()->values()->toArray(),
         ];
     }
@@ -59,11 +53,12 @@ class ProductSku extends Model
     }
     
     public function product() {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
-    public function variants() {
-        return $this->belongsToMany(ProductAttributeValue::class, 'product_details');
+    public function variants()
+    {
+        return $this->belongsToMany(ProductAttributeValue::class, 'product_details', 'product_sku_id', 'product_attribute_value_id');
     }
 
     public function stocks() {

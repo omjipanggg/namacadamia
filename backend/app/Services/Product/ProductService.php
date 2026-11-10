@@ -4,15 +4,18 @@ namespace App\Services\Product;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductSku;
+use App\Models\ProductAttribute;
 use App\Models\ProductAttributeValue;
 use App\Models\Stock;
 use App\Models\StockLocation;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProductService
 {
@@ -35,7 +38,7 @@ class ProductService
             $this->syncCategories($product, $data);
 
             if ($data['has_variants'] ?? false) {
-                $this->createVariantSkus($product, $data ?? []);
+                $this->syncVariantSkus($product, $data['attributes'] ?? [], $data['skus'] ?? []);
             } else {
                 $this->createSimpleSku($product, $data);
             }
@@ -62,7 +65,7 @@ class ProductService
             $this->syncCategories($product, $data);
 
             if ($data['has_variants'] ?? false) {
-                $this->syncVariantSkus($product, $data['skus'] ?? []);
+                $this->syncVariantSkus($product, $data['attributes'] ?? [], $data['skus'] ?? []);
             } else {
                 $this->syncSimpleSku($product, $data);
             }
@@ -76,9 +79,10 @@ class ProductService
         });
     }
 
-    public function destroy(Product $product): void
+    public function destroy(Product $product): JsonResponse
     {
-
+        $product->delete();
+        return response()->json(['success' => true, 'message' => 'Product deleted successfully']);
     }
 
     private function createProduct(array $data): Product
@@ -145,39 +149,285 @@ class ProductService
         }
     }
 
-    private function syncVariantSkus(Product $product, array $skus): void
-    {
+    /**
+     * Synchronize product attribute values and SKU combinations.
+     */
+    private function syncVariantSkus(
+        Product $product,
+        array $attributes,
+        array $skus
+    ): void {
+        // Resolve and persist attribute values first.
+        $resolvedValues = $this->resolveAttributeValues($attributes);
+
+        // Include soft-deleted SKUs so existing combinations can be restored.
+        $existingSkus = $product->skus()
+            ->withTrashed()
+            ->with('variants')
+            ->get();
+
+        // Index existing SKUs by their attribute combinations.
+        $existingByCombination = $existingSkus
+            ->filter(fn ($sku) => $sku->variants->isNotEmpty())
+            ->keyBy(fn ($sku) => $this->combinationKey(
+                $sku->variants->pluck('id')->all()
+            ));
+
+        $activeSkuIds = [];
+        $processedCombinations = [];
+
         foreach ($skus as $skuData) {
-            if (!empty($skuData['id'])) {
-                $sku = $product->skus()
-                    ->whereKey($skuData['id'])
-                    ->firstOrFail();
+            // Resolve frontend attribute values into actual database IDs.
+            $attributeValues = collect(
+                $skuData['attributes'] ?? []
+            )->map(function ($value) use ($resolvedValues) {
+                $identity = $this->attributeValueIdentity($value);
 
-                $sku->update([
-                    'code' => $skuData['code'],
-                    'barcode' => $skuData['barcode'] ?? null,
-                    'cost_price' => $skuData['cost_price'] ?? 0,
-                    'selling_price' => $skuData['selling_price'] ?? $product->price,
-                    'description' => $skuData['description'] ?? null,
+                $attributeValue = $resolvedValues[$identity] ?? null;
+
+                if (!$attributeValue) {
+                    throw ValidationException::withMessages([
+                        'skus' => "Unable to resolve attribute value: {$value['label']}.",
+                    ]);
+                }
+
+                return $attributeValue;
+            });
+
+            $valueIds = $attributeValues->pluck('id')->all();
+
+            if (empty($valueIds)) {
+                throw ValidationException::withMessages([
+                    'skus' => 'Each SKU must have at least one attribute value.',
                 ]);
+            }
+
+            $combinationKey = $this->combinationKey($valueIds);
+
+            // Prevent duplicate combinations in the same request.
+            if (isset($processedCombinations[$combinationKey])) {
+                throw ValidationException::withMessages([
+                    'skus' => 'Duplicate SKU combinations are not allowed.',
+                ]);
+            }
+
+            $processedCombinations[$combinationKey] = true;
+
+            // Find an existing SKU with the same combination.
+            $sku = $existingByCombination->get($combinationKey);
+
+            $isNew = !$sku;
+
+            if ($isNew) {
+                $sku = $product->skus()->make();
+
+                $sku->code = $this->generateVariantSkuCode(
+                    $product,
+                    $attributeValues
+                );
             } else {
-                $sku = $product->skus()->create([
-                    'code' => $skuData['code'],
-                    'barcode' => $skuData['barcode'] ?? null,
-                    'cost_price' => $skuData['cost_price'] ?? 0,
-                    'selling_price' => $skuData['selling_price'] ?? $product->price,
-                    'description' => $skuData['description'] ?? null,
-                ]);
+                // Restore a previously soft-deleted SKU if necessary.
+                if ($sku->trashed()) {
+                    $sku->restore();
+                }
+            }
 
+            $sku->fill([
+                'barcode' => $skuData['barcode'] ?? $sku->barcode,
+                'cost_price' => $skuData['cost_price'] ?? 0,
+                'selling_price' => $skuData['selling_price'] ?? $product->price,
+                'description' => $skuData['description'] ?? null,
+                'is_active' => true,
+            ]);
+
+            $sku->save();
+
+            // Synchronize actual ProductAttributeValue IDs.
+            $sku->variants()->sync($valueIds);
+
+            // Initialize stock only for newly created SKUs.
+            if ($isNew) {
                 $this->initStock($sku);
             }
 
-            $sku->variants()->sync(
-                $skuData['attributes'] ?? []
-            );
+            $activeSkuIds[] = $sku->id;
         }
+
+        // Deactivate combinations that are no longer selected.
+        $product->skus()
+            ->withTrashed()
+            ->whereNotIn('id', $activeSkuIds ?: [0])
+            ->update([
+                'is_active' => false,
+            ]);
     }
-    
+
+    /**
+     * Create or restore attribute values and resolve their identities.
+     */
+    private function resolveAttributeValues(array $groups): array
+    {
+        $resolved = [];
+
+        foreach ($groups as $group) {
+            $attributeId = $group['id'] ?? null;
+
+            if (!$attributeId) {
+                throw ValidationException::withMessages([
+                    'attributes' => 'Invalid product attribute.',
+                ]);
+            }
+
+            $attribute = ProductAttribute::find($attributeId);
+
+            if (!$attribute) {
+                throw ValidationException::withMessages([
+                    'attributes' => "Attribute {$attributeId} does not exist.",
+                ]);
+            }
+
+            foreach ($group['values'] ?? [] as $value) {
+                $label = trim($value['label'] ?? '');
+
+                if ($label === '') {
+                    throw ValidationException::withMessages([
+                        'attributes' => 'Attribute values cannot be empty.',
+                    ]);
+                }
+
+                if (!empty($value['id'])) {
+                    // Existing value: verify it belongs to this attribute.
+                    $attributeValue = ProductAttributeValue::withTrashed()
+                        ->where('product_attribute_id', $attributeId)
+                        ->find($value['id']);
+
+                    if (!$attributeValue) {
+                        throw ValidationException::withMessages([
+                            'attributes' => "Invalid attribute value ID: {$value['id']}.",
+                        ]);
+                    }
+                } else {
+                    // New value: check whether it already exists.
+                    $attributeValue = ProductAttributeValue::withTrashed()
+                        ->where('product_attribute_id', $attributeId)
+                        ->where('value', $label)
+                        ->first();
+
+                    if (!$attributeValue) {
+                        $attributeValue = ProductAttributeValue::create([
+                            'product_attribute_id' => $attributeId,
+                            'value' => $label,
+                            'abbr' => $this->generateUniqueAbbr($attributeId),
+                            'sort_order' => 0,
+                            'is_active' => true,
+                        ]);
+                    }
+                }
+
+                if ($attributeValue->trashed()) {
+                    $attributeValue->restore();
+                }
+
+                $identity = $this->attributeValueIdentity([
+                    'id' => $value['id'] ?? null,
+                    'attribute_id' => $attributeId,
+                    'label' => $label,
+                ]);
+
+                $resolved[$identity] = $attributeValue;
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Generate a unique three-character abbreviation per attribute.
+     */
+    private function generateUniqueAbbr(int $attributeId): string
+    {
+        $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+        do {
+            $abbr = '';
+
+            for ($i = 0; $i < 3; $i++) {
+                $abbr .= $characters[random_int(
+                    0,
+                    strlen($characters) - 1
+                )];
+            }
+
+        } while (
+            ProductAttributeValue::withTrashed()
+                ->where('product_attribute_id', $attributeId)
+                ->where('abbr', $abbr)
+                ->exists()
+        );
+
+        return $abbr;
+    }
+
+    /**
+     * Generate a SKU code from resolved database abbreviations.
+     */
+    private function generateVariantSkuCode(
+        Product $product,
+        $attributeValues
+    ): string {
+        $suffix = $attributeValues
+            ->pluck('abbr')
+            ->implode('-');
+
+        $base = Str::upper($product->code . '-' . $suffix);
+
+        $code = $base;
+        $sequence = 1;
+
+        // Protect the globally unique SKU code constraint.
+        while (
+            ProductSku::withTrashed()
+                ->where('code', $code)
+                ->exists()
+        ) {
+            $code = $base . '-' . Str::padLeft(
+                (string) $sequence,
+                2,
+                '0'
+            );
+
+            $sequence++;
+        }
+
+        return $code;
+    }
+
+    /**
+     * Generate a stable identity for an attribute value.
+     */
+    private function attributeValueIdentity(array $value): string
+    {
+        if (!empty($value['id'])) {
+            return 'id:' . $value['id'];
+        }
+
+        return 'new:' .
+            ($value['attribute_id'] ?? '') . ':' .
+            mb_strtolower(trim($value['label'] ?? ''));
+    }
+
+    /**
+     * Generate a stable key for a SKU combination.
+     */
+    private function combinationKey(array $valueIds): string
+    {
+        $valueIds = array_map('intval', $valueIds);
+
+        sort($valueIds);
+
+        return implode('-', $valueIds);
+    }
+
     private function generateSku(string $code): string
     {
         $base = Str::upper($code);

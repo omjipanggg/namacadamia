@@ -5,10 +5,13 @@
 
 	const pagination = computed(() => tableState.meta.pagination);
 
-	function changePage(link) {
-		if (link.active || !link.page) return;
-		tableState.actions.setPage(link.page);
-	}
+	const changePage = (target) => {
+		const page = typeof target === "number" ? target : target?.page;
+
+		if (!page || page === pagination.value.meta.current_page) return;
+
+		tableState.actions.setPage(page);
+	};
 
 	const prevLink = computed(() => {
 		return pagination.value.links.prev;
@@ -19,7 +22,7 @@
 	});
 
 	const displayPages = computed(() => {
-		const meta = pagination?.value.meta || {};
+		const meta = pagination.value?.meta ?? {};
 		const totalPages = meta.last_page || 1;
 		const currentPage = meta.current_page || 1;
 
@@ -38,7 +41,7 @@
 					<button
 						class="page-link"
 						:disabled="!prevLink"
-						@click="changePage(prevLink)"
+						@click="changePage(pagination.meta.current_page - 1)"
 					>
 						<i class="bi bi-chevron-left"></i>
 					</button>
@@ -54,7 +57,7 @@
 					<button
 						class="page-link"
 						:disabled="!nextLink"
-						@click="changePage(nextLink)"
+						@click="changePage(pagination.meta.current_page + 1)"
 					>
 						<i class="bi bi-chevron-right"></i>
 					</button>

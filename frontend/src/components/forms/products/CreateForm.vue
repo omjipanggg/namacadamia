@@ -16,7 +16,7 @@
 		},
 		onSave: {
 			type: Function,
-			default: () => {},
+			default: null,
 		},
 	});
 
@@ -45,43 +45,64 @@
 		return prices.reduce((sum, price) => sum + price, 0) / prices.length;
 	});
 
-	watch(
-		form,
-		(newForm) => {
-			if (newForm.name?.trim()) errors.name = "";
-			if (newForm.price !== 0) errors.price = "";
-			if (newForm.categories?.length) errors.categories = "";
-		},
-		{ deep: true }
-	);
+	const normalizeVariantLabel = (label) =>
+		String(label ?? "")
+			.trim()
+			.toLocaleLowerCase();
+
+	const getSkuKey = (values) =>
+		values
+			.map((value) => {
+				const identity =
+					value.id != null
+						? `id:${value.id}`
+						: `new:${normalizeVariantLabel(value.label)}`;
+
+				return `${value.attribute_id}:${identity}`;
+			})
+			.sort()
+			.join("|");
 
 	const getSelectedAttributes = (skus) => {
 		const selected = new Map();
+
 		skus.forEach((sku) => {
 			sku.variants?.forEach((variant) => {
 				const attributeId = variant.product_attribute_id;
 
-				if (!attributeId) {
-					return;
-				}
+				if (attributeId == null) return;
 
-				if (!selected.has(attributeId)) {
+				const key = String(attributeId);
+
+				if (!selected.has(key)) {
 					const attribute = props.lookup.product_attributes?.find(
-						(item) => item.value === attributeId
+						(item) => String(item.value) === key
 					);
-					if (!attribute) {
-						return;
-					}
-					selected.set(attributeId, {
-						attribute: { label: attribute.title, value: attribute.value },
-						valueIds: [],
+
+					if (!attribute) return;
+
+					selected.set(key, {
+						attribute: {
+							id: attribute.value,
+							label: attribute.title,
+						},
+						values: [],
 					});
 				}
 
-				const item = selected.get(attributeId);
+				const group = selected.get(key);
 
-				if (!item.valueIds.includes(variant.id)) {
-					item.valueIds.push(variant.id);
+				const existingValue = group.values.find(
+					(value) => String(value.id) === String(variant.id)
+				);
+
+				if (!existingValue) {
+					group.values.push({
+						id: variant.id,
+						label: variant.value,
+						attribute_id: attributeId,
+						abbr: variant.abbr ?? null,
+					});
 				}
 			});
 		});
@@ -152,7 +173,7 @@
 			...buildPayload(form),
 		};
 
-		if (props.product) {
+		if (props.product && props.onSave) {
 			props.onSave?.(data);
 		} else {
 			emit("save", data);
@@ -166,45 +187,40 @@
 
 	const fillForm = (product) => {
 		const skus = (product.skus ?? []).map((sku) => {
-			const values =
-				sku.variants?.map((variant) => ({
-					id: variant.id,
-					title: variant.value,
-					subtitle: variant.product_attribute?.name,
-					value: variant.id,
-					meta: {
-						product_attribute_id: variant.product_attribute_id,
-						abbr: variant.abbr,
-					},
-				})) ?? [];
+			const values = (sku.variants ?? []).map((variant) => ({
+				id: variant.id,
+				label: variant.value,
+				attribute_id: variant.product_attribute_id,
+				abbr: variant.abbr ?? "",
+			}));
 
 			return {
 				...sku,
 				id: sku.id ?? null,
-				key: values
-					.map((value) => value.id)
-					.sort((a, b) => a - b)
-					.join("-"),
+				key: getSkuKey(values),
 				barcode: sku.barcode ?? "",
 				cost_price: sku.cost_price ?? 0,
 				selling_price: sku.selling_price ?? product.price ?? 0,
+				description: sku.description ?? "",
+				is_active: sku.is_active ?? true,
 				values,
 			};
 		});
-
-		const hasVariants = skus.some((sku) => sku.values.length > 0);
 
 		Object.assign(form, {
 			code: product.code ?? generateRandomCode(6),
 			name: product.name ?? "",
 			price: product.price ?? "",
 			description: product.description ?? null,
-			categories:
-				product.categories.map((category) => ({
-					label: category.name,
-					value: category.id,
-				})) ?? [],
-			hasVariants,
+
+			categories: (product.categories ?? []).map((category) => ({
+				label: category.name,
+				value: category.id,
+			})),
+
+			hasVariants:
+				product.has_variants ?? skus.some((sku) => sku.values.length > 0),
+
 			selectedAttributes: getSelectedAttributes(skus),
 			skus,
 		});
@@ -225,6 +241,16 @@
 			}
 		},
 		{ immediate: true, deep: true }
+	);
+
+	watch(
+		form,
+		(newForm) => {
+			if (newForm.name?.trim()) errors.name = "";
+			if (newForm.price !== 0) errors.price = "";
+			if (newForm.categories?.length) errors.categories = "";
+		},
+		{ deep: true }
 	);
 </script>
 

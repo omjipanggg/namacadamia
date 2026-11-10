@@ -13,13 +13,13 @@
 		id: { type: String, default: () => useId() },
 	});
 
-	const displayValue = computed(() => formatNumber(model.value));
+	const displayValue = computed(() => formatNumber(model.value, false));
 
 	const onInput = (event) => {
 		const rawValue = event.target.value;
 		const cleaned = cleanNumber(rawValue);
 		model.value = cleaned ? parseFloat(cleaned) : null;
-		event.target.value = formatNumber(cleaned);
+		event.target.value = formatNumber(cleaned, false);
 	};
 </script>
 

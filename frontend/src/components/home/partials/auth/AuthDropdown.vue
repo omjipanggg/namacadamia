@@ -97,7 +97,7 @@
 			</li>
 			<li><hr class="dropdown-divider" /></li>
 			<li>
-				<a class="dropdown-item" href="#" @click="handleLogout">
+				<a class="dropdown-item text-danger" href="#" @click="handleLogout">
 					<i class="bi bi-box-arrow-right me-2"></i>
 					{{ $t("auth.logout") }}</a
 				>

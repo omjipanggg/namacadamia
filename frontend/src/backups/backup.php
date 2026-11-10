@@ -98,6 +98,41 @@
     }
 
 
+    // sync variant skus
+    
+    private function syncVariantSkus(Product $product, array $skus): void
+    {
+        foreach ($skus as $skuData) {
+            if (!empty($skuData['id'])) {
+                $sku = $product->skus()
+                    ->whereKey($skuData['id'])
+                    ->firstOrFail();
+
+                $sku->update([
+                    'code' => $skuData['code'],
+                    'barcode' => $skuData['barcode'] ?? null,
+                    'cost_price' => $skuData['cost_price'] ?? 0,
+                    'selling_price' => $skuData['selling_price'] ?? $product->price,
+                    'description' => $skuData['description'] ?? null,
+                ]);
+            } else {
+                $sku = $product->skus()->create([
+                    'code' => $skuData['code'],
+                    'barcode' => $skuData['barcode'] ?? null,
+                    'cost_price' => $skuData['cost_price'] ?? 0,
+                    'selling_price' => $skuData['selling_price'] ?? $product->price,
+                    'description' => $skuData['description'] ?? null,
+                ]);
+
+                $this->initStock($sku);
+            }
+
+            $sku->variants()->sync(
+                $skuData['attributes'] ?? []
+            );
+        }
+    }
+    
 // SaleService
 
 

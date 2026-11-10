@@ -16,7 +16,7 @@ class Stock extends Model
     }
 
     public function sku() {
-        return $this->belongsTo(ProductSku::class, 'product_sku_id');
+        return $this->belongsTo(ProductSku::class, 'product_sku_id')->withTrashed();
     }
 
     public function movements() {

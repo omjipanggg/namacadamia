@@ -1,5 +1,5 @@
 <script setup>
-	import { onMounted, ref } from "vue";
+	import { onMounted, ref, nextTick } from "vue";
 	import { columns } from "@/resources/products.js";
 	import { useToast } from "@/composables/toast.js";
 	import { useModal } from "@/composables/modal.js";
@@ -113,10 +113,19 @@
 
 		if (!confirmed) return;
 
-		toast.success(
-			t("notifications.title"),
-			t("products.deleted", { code: escapedCode })
-		);
+		try {
+			await api.delete(`/api/dashboard/products/${product.slug}`);
+		} catch (error) {
+			console.error(error);
+		} finally {
+			toast.success(
+				t("notifications.title"),
+				t("products.deleted", { code: escapedCode })
+			);
+
+			nextTick();
+			fetchProducts();
+		}
 	};
 
 	onMounted(() => {

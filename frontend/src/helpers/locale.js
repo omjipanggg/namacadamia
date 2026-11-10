@@ -154,6 +154,7 @@ export default createI18n({
 				sourceLocation: "Source",
 				targetLocation: "Target",
 				preview: "Preview",
+				enterToAdd: "Press Enter to add `{data}`",
 			},
 			status: {
 				pending: "Pending",
@@ -260,7 +261,7 @@ export default createI18n({
 				loggingIn: "Logging in...",
 				loginSubtitle: "It only takes a minute to get started.",
 				loginSuccess: "Logged in as {email}.",
-				logout: "Sign out",
+				logout: "Logout",
 				logoutSuccess: "See you again, soon.",
 				register: "Register",
 				rememberMe: "Remember me",
@@ -318,7 +319,7 @@ export default createI18n({
 				itemSingle: "Item",
 				delete: "Delete {code}?",
 				rain: "Raincoat",
-				deleted: "Product {code} deleted!",
+				deleted: "{code} deleted!",
 				inputName: "Enter name",
 				hasVariants: "This product has variants",
 				variants: "Product Variants",
@@ -447,6 +448,7 @@ export default createI18n({
 				noOptions: "No options available",
 				loading: "Loading options...",
 				one: "Select one {item}",
+				tagPlaceholder: "Enter {item}",
 			},
 			customer: {
 				title: "Customer",
@@ -555,6 +557,7 @@ export default createI18n({
 				sourceLocation: "Sumber",
 				targetLocation: "Tujuan",
 				preview: "Pratinjau",
+				enterToAdd: "Tekan Enter untuk menambahkan `{data}`",
 			},
 			status: {
 				pending: "Menunggu",
@@ -724,7 +727,7 @@ export default createI18n({
 				single: "Produk",
 				itemSingle: "Item",
 				delete: "Hapus {code}?",
-				deleted: "Produk {code} dihapus!",
+				deleted: "{code} dihapus!",
 				rain: "Jas Hujan",
 				inputName: "Masukkan nama",
 				hasVariants: "Produk ini memiliki variasi",
@@ -855,6 +858,7 @@ export default createI18n({
 				noOptions: "Tidak ada pilihan tersedia",
 				loading: "Memuat opsi...",
 				one: "Pilih satu {item}",
+				tagPlaceholder: "Masukkan {item}",
 			},
 			settings: {
 				title: "Pengaturan",

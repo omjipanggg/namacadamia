@@ -41,33 +41,55 @@ class UpdateProductRequest extends FormRequest
             'categories.*' => [
                 'integer',
                 'exists:product_categories,id',
+                'distinct',
             ],
 
             'has_variants' => ['nullable', 'boolean'],
-            'skus' => ['nullable', 'array'],
 
+            'attributes' => ['required_if:has_variants,true', 'array'],
+            'attributes.*.id' => [
+                'required',
+                'integer',
+                'exists:product_attributes,id',
+            ],
+            'attributes.*.label' => ['required', 'string', 'max:255'],
+            'attributes.*.values' => ['required', 'array', 'min:1'],
+            'attributes.*.values.*.id' => ['nullable', 'integer'],
+            'attributes.*.values.*.label' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+
+            'skus' => ['required_if:has_variants,true', 'array', 'min:1'],
+            
             'skus.*.id' => [
                 'nullable',
                 'integer',
-                'distinct',
+                Rule::exists('product_skus', 'id')->where('product_id', $product->id),
             ],
-            
-            'skus.*.code' => [
-                'nullable',
-                'string',
-                'max:191',
-            ],
-            'skus.*.barcode' => ['nullable', 'string', 'max:191'],
-            'skus.*.cost_price' => ['nullable', 'numeric', 'min:0'],
-            'skus.*.selling_price' => ['nullable', 'numeric', 'min:0'],
-            'skus.*.description' => ['nullable', 'string'],
+            'skus.*.code' => ['prohibited'],
 
-            'skus.*.attributes' => ['nullable', 'array'],
-            'skus.*.attributes.*' => [
-                'nullable',
+            'skus.*.barcode' => ['nullable', 'string', 'max:191'],
+            'skus.*.cost_price' => ['required', 'numeric', 'min:0'],
+            'skus.*.selling_price' => ['required', 'numeric', 'min:0'],
+            'skus.*.description' => ['nullable', 'string'],
+            'skus.*.is_active' => ['nullable', 'boolean'],
+
+            'skus.*.attributes' => ['required', 'array', 'min:1'],
+            'skus.*.attributes.*' => ['required', 'array'],
+            'skus.*.attributes.*.id' => ['nullable', 'integer'],
+            'skus.*.attributes.*.label' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'skus.*.attributes.*.attribute_id' => [
+                'required',
                 'integer',
-                'exists:product_attribute_values,id',
+                'exists:product_attributes,id',
             ],
         ];
     }
+
 }
