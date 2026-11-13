@@ -1,6 +1,10 @@
 <script setup>
 	import { computed, reactive, watch } from "vue";
-	import { buildPayload, generateRandomCode } from "@/resources/products.js";
+	import {
+		buildPayload,
+		generateRandomCode,
+		getSkuKey,
+	} from "@/resources/products.js";
 	import CreateBasicInfoCard from "./CreateBasicInfoCard.vue";
 	import CreateAttributesCard from "./CreateAttributesCard.vue";
 	import VariantsTableCard from "./VariantsTableCard.vue";
@@ -44,24 +48,6 @@
 
 		return prices.reduce((sum, price) => sum + price, 0) / prices.length;
 	});
-
-	const normalizeVariantLabel = (label) =>
-		String(label ?? "")
-			.trim()
-			.toLocaleLowerCase();
-
-	const getSkuKey = (values) =>
-		values
-			.map((value) => {
-				const identity =
-					value.id != null
-						? `id:${value.id}`
-						: `new:${normalizeVariantLabel(value.label)}`;
-
-				return `${value.attribute_id}:${identity}`;
-			})
-			.sort()
-			.join("|");
 
 	const getSelectedAttributes = (skus) => {
 		const selected = new Map();

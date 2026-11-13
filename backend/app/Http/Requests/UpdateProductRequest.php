@@ -91,5 +91,4 @@ class UpdateProductRequest extends FormRequest
             ],
         ];
     }
-
 }

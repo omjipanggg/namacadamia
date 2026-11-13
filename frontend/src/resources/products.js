@@ -78,6 +78,16 @@ export const generateRandomCode = (length, options = {}) => {
 	return result;
 };
 
+export const getSkuKey = (values) =>
+	values
+		.map((value) => {
+			const attributeId = value.attribute_id;
+
+			return `${attributeId}:${getValueIdentity(value, attributeId)}`;
+		})
+		.sort()
+		.join("|");
+
 // Generate a stable identity for an attribute value.
 const getValueIdentity = (value, attributeId = value.attribute_id) =>
 	value.id != null
@@ -146,11 +156,9 @@ export const generateGroupAbbrs = (values, attributeId) => {
 	return result;
 };
 
-// Generate all possible SKU combinations.
 export const generateVariants = (groups, prefix) => {
 	if (!groups.length) return [];
 
-	// Generate abbreviation maps for every attribute group.
 	const abbreviationMaps = new Map(
 		groups.map((group) => [
 			String(group.attribute.id),
@@ -171,7 +179,6 @@ export const generateVariants = (groups, prefix) => {
 		});
 	});
 
-	// Generate every possible combination.
 	const combinations = groups.reduce(
 		(acc, group) => {
 			return acc.flatMap((combination) =>
@@ -188,12 +195,7 @@ export const generateVariants = (groups, prefix) => {
 	);
 
 	return combinations.map((values) => {
-		const key = values
-			.map((value) => getValueIdentity(value))
-			.sort()
-			.join("|");
-
-		// Use the exact abbreviations stored in the attribute values.
+		const key = getSkuKey(values);
 		const suffix = values.map((value) => value.abbr).join("-");
 
 		return {
@@ -209,7 +211,6 @@ export const generateVariants = (groups, prefix) => {
 	});
 };
 
-// Build the API payload.
 export const buildPayload = (form) => ({
 	code: form.code,
 	name: form.name,

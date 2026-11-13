@@ -55,7 +55,7 @@
 				t("tables.deleted", { count: response?.deleted_items_count })
 			);
 		} catch (error) {
-			toast.danger(t("common.failure"), error.message);
+			toast.error(t("common.failure"), error.message);
 		} finally {
 			fetchData();
 			saving.value = false;

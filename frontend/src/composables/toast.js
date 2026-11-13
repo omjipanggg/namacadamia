@@ -28,7 +28,7 @@ export function useToast() {
 		});
 	};
 
-	const danger = (title, content) => {
+	const error = (title, content) => {
 		toastStore.create({
 			title,
 			content,
@@ -40,6 +40,6 @@ export function useToast() {
 		success,
 		info,
 		warning,
-		danger,
+		error,
 	};
 }

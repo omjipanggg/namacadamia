@@ -53,7 +53,7 @@ class Product extends Model
     }
 
     public function skus() {
-        return $this->hasMany(ProductSku::class);
+        return $this->hasMany(ProductSku::class)->where('is_active', true);
     }
 
     public function discounts() {

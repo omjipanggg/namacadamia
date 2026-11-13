@@ -40,10 +40,11 @@ class ProductController extends BaseController
         return ProductIndexResource::make($product);
     }
 
-    public function update(UpdateProductRequest $request, Product $product) {
+    public function update(UpdateProductRequest $request, Product $product) {        
         $updatedProduct = $this->service->update($product, $request->validated());
         return ProductIndexResource::make($updatedProduct);
     }
+
     public function destroy(Product $product) {
         return $this->service->destroy($product);
     }

@@ -477,7 +477,7 @@ router.beforeEach(async (to) => {
 	}
 
 	if (to.meta.restricted && authStore.isLoggedIn && !authStore.isAdmin) {
-		toast.danger("common.failure", "errors.access.restricted");
+		toast.error("common.failure", "errors.access.restricted");
 		return {
 			name: "dashboard.index",
 		};

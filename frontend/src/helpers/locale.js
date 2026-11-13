@@ -334,6 +334,7 @@ export default createI18n({
 				enterQuantity: "Enter a number",
 				edit: "Edit Products",
 				created: "Product {code} created successfully",
+				updated: "Product {code} updated successfully",
 			},
 			greeting: {
 				thankYouForPurchase: "Thank you for your purchase.",
@@ -680,7 +681,7 @@ export default createI18n({
 			},
 			dashboard: {
 				title: "Dasbor",
-				subtitle: "Namanya beda.",
+				subtitle: "Mesin pengelola inventaris.",
 				profile: "Profil",
 				users: "Pengguna",
 				products: "Produk",
@@ -744,6 +745,7 @@ export default createI18n({
 				enterQuantity: "Masukkan angka",
 				edit: "Produk - Sunting",
 				created: "Produk {code} berhasil ditambahkan",
+				updated: "Produk {code} diubah",
 			},
 			greeting: {
 				thankYouForPurchase: "Terima kasih atas pembelian Anda.",

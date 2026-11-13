@@ -1,7 +1,7 @@
 <script setup>
 	import { computed, reactive, ref, watch } from "vue";
 
-	import { generateVariants } from "@/resources/products.js";
+	import { generateVariants, getSkuKey } from "@/resources/products.js";
 	import BaseMoneyInput from "@/components/base/BaseMoneyInput.vue";
 
 	const skus = defineModel({
@@ -71,9 +71,11 @@
 		groups,
 		(newGroups) => {
 			const existingSkus = skus.value;
-			const existingByKey = new Map(existingSkus.map((sku) => [sku.key, sku]));
 
-			// No complete combinations can be generated.
+			const existingByKey = new Map(
+				existingSkus.map((sku) => [sku.key || getSkuKey(sku.values ?? []), sku])
+			);
+
 			const generated =
 				newGroups.length && !hasEmptyGroup.value
 					? generateVariants(newGroups, props.code)
@@ -81,8 +83,6 @@
 
 			const generatedKeys = new Set(generated.map((sku) => sku.key));
 
-			// Reuse existing SKU records to preserve their prices,
-			// barcode, code, and database ID.
 			const nextSkus = generated.map((variant) => {
 				const existing = existingByKey.get(variant.key);
 
@@ -95,7 +95,6 @@
 					: variant;
 			});
 
-			// Keep removed persisted combinations, but deactivate them.
 			const removedPersistedSkus = existingSkus
 				.filter((sku) => sku.id != null && !generatedKeys.has(sku.key))
 				.map((sku) => ({

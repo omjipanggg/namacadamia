@@ -51,7 +51,7 @@ class ProductService
             ]);
         });
     }
-    
+
     public function update(Product $product, array $data): Product
     {
         return DB::transaction(function ($query) use ($product, $data) {
@@ -115,7 +115,7 @@ class ProductService
 
     private function syncSimpleSku(Product $product, array $data): void
     {
-        $sku = $product->skus()->first();
+        $sku = $product->skus()->withTrashed()->first();
 
         if ($sku) {
             $sku->update([
@@ -152,32 +152,38 @@ class ProductService
     /**
      * Synchronize product attribute values and SKU combinations.
      */
-    private function syncVariantSkus(
-        Product $product,
-        array $attributes,
-        array $skus
-    ): void {
-        // Resolve and persist attribute values first.
+    private function syncVariantSkus(Product $product, array $attributes, array $skus): void
+    {
         $resolvedValues = $this->resolveAttributeValues($attributes);
 
-        // Include soft-deleted SKUs so existing combinations can be restored.
         $existingSkus = $product->skus()
             ->withTrashed()
             ->with('variants')
             ->get();
 
-        // Index existing SKUs by their attribute combinations.
         $existingByCombination = $existingSkus
             ->filter(fn ($sku) => $sku->variants->isNotEmpty())
             ->keyBy(fn ($sku) => $this->combinationKey(
                 $sku->variants->pluck('id')->all()
             ));
 
+logger()->debug('SKU SYNC: Existing combinations', [
+    'existing_skus' => $existingSkus->map(fn ($sku) => [
+        'id' => $sku->id,
+        'code' => $sku->code,
+        'is_active' => $sku->is_active,
+        'is_trashed' => $sku->trashed(),
+        'variant_ids' => $sku->variants->pluck('id')->sort()->values()->all(),
+        'combination_key' => $this->combinationKey(
+            $sku->variants->pluck('id')->all()
+        ),
+    ])->values()->all(),
+]);
+
         $activeSkuIds = [];
         $processedCombinations = [];
 
         foreach ($skus as $skuData) {
-            // Resolve frontend attribute values into actual database IDs.
             $attributeValues = collect(
                 $skuData['attributes'] ?? []
             )->map(function ($value) use ($resolvedValues) {
@@ -204,7 +210,12 @@ class ProductService
 
             $combinationKey = $this->combinationKey($valueIds);
 
-            // Prevent duplicate combinations in the same request.
+            logger()->debug('SKU SYNC: Incoming combination', [
+                'combination_key' => $combinationKey,
+                'matched_sku_id' => $existingByCombination->get($combinationKey)?->id,
+                'attribute_value_ids' => $valueIds,
+            ]);
+
             if (isset($processedCombinations[$combinationKey])) {
                 throw ValidationException::withMessages([
                     'skus' => 'Duplicate SKU combinations are not allowed.',
@@ -213,7 +224,6 @@ class ProductService
 
             $processedCombinations[$combinationKey] = true;
 
-            // Find an existing SKU with the same combination.
             $sku = $existingByCombination->get($combinationKey);
 
             $isNew = !$sku;
@@ -226,7 +236,6 @@ class ProductService
                     $attributeValues
                 );
             } else {
-                // Restore a previously soft-deleted SKU if necessary.
                 if ($sku->trashed()) {
                     $sku->restore();
                 }
@@ -237,15 +246,13 @@ class ProductService
                 'cost_price' => $skuData['cost_price'] ?? 0,
                 'selling_price' => $skuData['selling_price'] ?? $product->price,
                 'description' => $skuData['description'] ?? null,
-                'is_active' => true,
+                'is_active' => $skuData['is_active'] ?? true,
             ]);
 
             $sku->save();
 
-            // Synchronize actual ProductAttributeValue IDs.
             $sku->variants()->sync($valueIds);
 
-            // Initialize stock only for newly created SKUs.
             if ($isNew) {
                 $this->initStock($sku);
             }
@@ -253,7 +260,6 @@ class ProductService
             $activeSkuIds[] = $sku->id;
         }
 
-        // Deactivate combinations that are no longer selected.
         $product->skus()
             ->withTrashed()
             ->whereNotIn('id', $activeSkuIds ?: [0])
@@ -384,7 +390,6 @@ class ProductService
         $code = $base;
         $sequence = 1;
 
-        // Protect the globally unique SKU code constraint.
         while (
             ProductSku::withTrashed()
                 ->where('code', $code)

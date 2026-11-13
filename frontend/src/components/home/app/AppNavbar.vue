@@ -24,7 +24,7 @@
 	};
 
 	const handleMaintenance = () => {
-		toast.danger(t("notifications.title"), t("errors.access.maintenance"));
+		toast.error(t("notifications.title"), t("errors.access.maintenance"));
 	};
 </script>
 

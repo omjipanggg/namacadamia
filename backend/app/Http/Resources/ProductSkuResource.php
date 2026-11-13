@@ -21,6 +21,7 @@ class ProductSkuResource extends JsonResource
             'product' => ProductIndexResource::make($this->whenLoaded('product')),
             'stocks' => StockResource::collection($this->whenLoaded('stocks')),
             'barcode' => $this->barcode,
+            'cost_price' => $this->cost_price,
             'selling_price' => $this->selling_price,
             'formatted_selling_price' => $this->formatted_selling_price,
             'weight' => $this->weight,

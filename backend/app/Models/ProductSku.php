@@ -27,7 +27,7 @@ class ProductSku extends Model
     
     public function getLookupTitleAttribute(): string
     {
-        return $this->product->name;
+        return $this->product?->name ?? 'N/A';
     }
 
     public function getLookupSubtitleAttribute(): string

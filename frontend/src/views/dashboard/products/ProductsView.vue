@@ -46,37 +46,49 @@
 
 	const onSave = async (payload) => {
 		saving.value = true;
+		errors.value = {};
 
 		const { slug, ...data } = payload;
 
-		console.log("Submitting from onSave...");
-
 		try {
+			let msgString = "";
+
 			if (slug) {
+				msgString = "updated";
 				await api.put(`/api/dashboard/products/${slug}`, data);
 			} else {
+				msgString = "created";
 				await api.post("/api/dashboard/products", data);
 			}
 
 			await fetchProducts();
+
 			productForm.value?.reset();
 			show.value = false;
-		} catch (error) {
-			errors.value = error;
-			console.warn(error);
-		} finally {
-			saving.value = false;
 
 			const escapedCode = `<strong>#${payload.code}</strong>`;
 
 			toast.success(
 				t("notifications.title"),
-				t("products.created", { code: escapedCode })
+				t(`products.${msgString}`, { code: escapedCode })
 			);
 
 			lookup.load(["skus"], true);
 
 			closeModal();
+		} catch (error) {
+			console.warn("Failed to save product:", error);
+
+			errors.value = error.response?.data?.errors ?? {};
+
+			if (!Object.keys(errors.value).length) {
+				toast.error(
+					t("notifications.title"),
+					error.response?.data?.message ?? "Something went wrong."
+				);
+			}
+		} finally {
+			saving.value = false;
 		}
 	};
 
